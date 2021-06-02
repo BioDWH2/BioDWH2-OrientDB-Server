@@ -59,12 +59,10 @@ public class OrientDBServer {
             printHelp(commandLine);
             return;
         }
-        /* TODO
-        final Neo4jService service = new Neo4jService(workspacePath);
+        final OrientDBService service = new OrientDBService(workspacePath);
         service.deleteOldDatabase();
-        service.startNeo4jService(commandLine.boltPort);
+        service.startOrientDBService();
         service.createDatabase();
-         */
         storeWorkspaceHash(workspacePath);
         /* TODO
         final Neo4jBrowser browser = new Neo4jBrowser(workspacePath);
@@ -112,9 +110,9 @@ public class OrientDBServer {
         }
         if (!checkOrientDBDatabaseMatchesWorkspace(workspacePath) && LOGGER.isInfoEnabled())
             LOGGER.warn("The OrientDB database is out-of-date and should be recreated with the --create command");
+        final OrientDBService service = new OrientDBService(workspacePath);
+        service.startOrientDBService();
         /* TODO
-        final Neo4jService service = new Neo4jService(workspacePath);
-        service.startNeo4jService(commandLine.boltPort);
         final Neo4jBrowser browser = new Neo4jBrowser(workspacePath);
         if (browser.downloadNeo4jBrowser())
             browser.startNeo4jBrowser(commandLine.port);
@@ -143,12 +141,10 @@ public class OrientDBServer {
             printHelp(commandLine);
             return;
         }
-        /* TODO
-        final Neo4jService service = new Neo4jService(workspacePath);
+        final OrientDBService service = new OrientDBService(workspacePath);
         service.deleteOldDatabase();
-        service.startNeo4jService(commandLine.boltPort);
+        service.startOrientDBService();
         service.createDatabase();
-        */
         storeWorkspaceHash(workspacePath);
     }
 
