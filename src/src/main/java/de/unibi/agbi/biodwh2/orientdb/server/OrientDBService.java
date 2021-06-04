@@ -1,15 +1,28 @@
 package de.unibi.agbi.biodwh2.orientdb.server;
 
+import com.orientechnologies.orient.core.db.*;
+import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.record.OEdge;
+import com.orientechnologies.orient.core.record.OVertex;
 import com.orientechnologies.orient.server.OServer;
 import com.orientechnologies.orient.server.OServerMain;
 import com.orientechnologies.orient.server.config.*;
+import de.unibi.agbi.biodwh2.core.model.graph.Edge;
+import de.unibi.agbi.biodwh2.core.model.graph.Graph;
+import de.unibi.agbi.biodwh2.core.model.graph.Node;
+import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collection;
+import java.util.HashMap;
 
 /**
  * https://orientdb.com/docs/last/internals/Embedded-Server.html
@@ -18,35 +31,54 @@ public class OrientDBService {
     private static final Logger LOGGER = LoggerFactory.getLogger(OrientDBService.class);
 
     private final String workspacePath;
-    private final String orientDBPath;
-    private final String databasePath;
+    private final Path orientdbPath;
+    private final Path databasePath;
+    private final Path configPath;
+    private final Path securityFilePath;
+    private OServer server;
 
     public OrientDBService(final String workspacePath) {
         this.workspacePath = workspacePath;
-        orientDBPath = Paths.get(workspacePath, "orientdb").toString();
-        databasePath = Paths.get(orientDBPath, "orientdb").toString();
+        orientdbPath = Paths.get(workspacePath, "orientdb");
+        databasePath = Paths.get(workspacePath, "orientdb", "orientdb");
+        configPath = Paths.get(workspacePath, "orientdb", "config");
+        securityFilePath = Paths.get(workspacePath, "orientdb", "config", "security.json");
     }
 
     public void startOrientDBService() {
         if (LOGGER.isInfoEnabled())
-            LOGGER.info("Starting OrientDB DBMS on bolt://localhost:...");
+            LOGGER.info("Starting OrientDB DBMS on localhost:2424...");
         try {
-            final OServer server = OServerMain.create();
-            final OServerConfiguration cfg = new OServerConfiguration();
-            cfg.network = getNetwork();
-            cfg.users = new OServerUserConfiguration[]{getRootUser()};
-            cfg.properties = new OServerEntryConfiguration[]{
-                    getServerProperty("server.cache.staticResources", "false"),
-                    getServerProperty("log.console.level", "info"),
-                    getServerProperty("log.file.level", "fine"),
-                    getServerProperty("plugin.dynamic", "false")
-            };
-            // TODO
-            server.startup(cfg);
+            System.setProperty("ORIENTDB_HOME", orientdbPath.toString());
+            System.setProperty("ORIENTDB_ROOT_PASSWORD", "");
+            Files.createDirectories(databasePath);
+            Files.createDirectories(configPath);
+            Files.write(securityFilePath,
+                        "{\"enabled\":true,\"authentication\":{\"allowDefault\":true,\"authenticators\":[{\"name\":\"Password\",\"class\":\"com.orientechnologies.orient.server.security.authenticator.ODefaultPasswordAuthenticator\",\"enabled\":true,\"users\":[{\"username\":\"guest\",\"resources\":\"connect,server.listDatabases,server.dblist\"},{\"username\":\"root\",\"resources\":\"*\"},{\"username\":\"biodwh2\",\"resources\":\"*\"}]},{\"name\":\"ServerConfig\",\"class\":\"com.orientechnologies.orient.server.security.authenticator.OServerConfigAuthenticator\",\"enabled\":true}]}}"
+                                .getBytes(StandardCharsets.UTF_8));
+            server = OServerMain.create();
+            server.startup(getServerConfig());
             server.activate();
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private OServerConfiguration getServerConfig() {
+        final OServerConfiguration config = new OServerConfiguration();
+        config.network = getNetwork();
+        config.users = new OServerUserConfiguration[]{
+                getUser("root", "root", "*"), getUser("biodwh2", "biodwh2", "*"), getUser("guest", "guest",
+                                                                                          "connect,server.listDatabases,server.dblist")
+        };
+        config.properties = new OServerEntryConfiguration[]{
+                getServerProperty("server.cache.staticResources", "false"), getServerProperty("log.console.level",
+                                                                                              "warning"),
+                getServerProperty("log.file.level", "fine"), getServerProperty("plugin.dynamic", "true"),
+                getServerProperty("server.database.path", databasePath.toString()), getServerProperty(
+                "orientdb.www.path", Paths.get(orientdbPath.toString(), "www").toString())
+        };
+        return config;
     }
 
     private OServerNetworkConfiguration getNetwork() {
@@ -66,14 +98,28 @@ public class OrientDBService {
         httpListener.ipAddress = "0.0.0.0";
         httpListener.portRange = "2480-2490";
         httpListener.protocol = "http";
+        final OServerCommandConfiguration httpCommand = new OServerCommandConfiguration();
+        httpCommand.implementation = "com.orientechnologies.orient.server.network.protocol.http.command.get.OServerCommandGetStaticContent";
+        httpCommand.pattern = "GET|www GET|studio/ GET| GET|*.htm GET|*.html GET|*.xml GET|*.jpeg GET|*.jpg GET|*.png GET|*.gif GET|*.js GET|*.css GET|*.swf GET|*.ico GET|*.txt GET|*.otf GET|*.pjs GET|*.svg";
+        httpCommand.parameters = new OServerEntryConfiguration[]{
+                getServerProperty("http.cache:*.htm *.html",
+                                  "Cache-Control: no-cache, no-store, max-age=0, must-revalidate\r\nPragma: no-cache"),
+                getServerProperty("http.cache:default", "Cache-Control: max-age=120")
+        };
+        httpListener.commands = new OServerCommandConfiguration[]{httpCommand};
+        final OServerParameterConfiguration charsetParameter = new OServerParameterConfiguration();
+        charsetParameter.name = "network.http.charset";
+        charsetParameter.value = "utf-8";
+        httpListener.parameters = new OServerParameterConfiguration[]{charsetParameter};
         network.listeners = new ArrayList<>(Arrays.asList(binaryListener, httpListener));
         return network;
     }
 
-    private OServerUserConfiguration getRootUser() {
+    private OServerUserConfiguration getUser(final String name, final String password, final String resources) {
         final OServerUserConfiguration user = new OServerUserConfiguration();
-        user.name = "root";
-        user.password = "";
+        user.name = name;
+        user.password = password;
+        user.resources = resources;
         return user;
     }
 
@@ -84,15 +130,129 @@ public class OrientDBService {
         return property;
     }
 
+    public void stopOrientDBService() {
+        if (server != null)
+            server.shutdown();
+    }
+
     public void deleteOldDatabase() {
         if (LOGGER.isInfoEnabled())
             LOGGER.info("Removing old database...");
-        // TODO
+
+        try {
+            FileUtils.deleteDirectory(databasePath.toFile());
+        } catch (IOException e) {
+            if (LOGGER.isErrorEnabled())
+                LOGGER.error("Failed to remove old database '" + databasePath + "'", e);
+        }
     }
 
     public void createDatabase() {
         if (LOGGER.isInfoEnabled())
-            LOGGER.info("Creating Neo4j database...");
+            LOGGER.info("Creating OrientDB database...");
+        server.createDatabase("BioDWH2", ODatabaseType.PLOCAL, OrientDBConfig.defaultConfig());
+        try (ODatabaseDocumentInternal db = server.openDatabase("BioDWH2"); Graph graph = new Graph(
+                Paths.get(workspacePath, "sources/mapped.db"), true)) {
+            Files.createDirectories(databasePath);
+            final HashMap<Long, ORID> nodeIdOrientDBIdMap = new HashMap<>();
+            createNodes(db, graph, nodeIdOrientDBIdMap);
+            createEdges(db, graph, nodeIdOrientDBIdMap);
+            createIndices(db);
+        } catch (IOException e) {
+            if (LOGGER.isErrorEnabled())
+                LOGGER.error("Failed to create OrientDB database '" + databasePath + "'", e);
+        }
+    }
+
+    private void createNodes(final ODatabaseDocumentInternal db, final Graph graph,
+                             final HashMap<Long, ORID> nodeIdOrientDBIdMap) {
+        if (LOGGER.isInfoEnabled())
+            LOGGER.info("Creating nodes...");
+        for (final Node node : graph.getNodes()) {
+            for (final String label : node.getLabels())
+                if (db.getClass(label) == null)
+                    db.createVertexClass(label);
+            // TODO: multiple labels?
+            OVertex orientNode = db.newVertex(node.getLabels()[0]);
+            for (final String propertyKey : node.keySet())
+                setPropertySafe(node, orientNode, propertyKey);
+            final ORID id = orientNode.save().getIdentity();
+            nodeIdOrientDBIdMap.put(node.getId(), id);
+        }
+    }
+
+    private void setPropertySafe(final Node node, final OVertex orientNode, final String propertyKey) {
+        try {
+            if (!Node.IGNORED_FIELDS.contains(propertyKey)) {
+                Object value = node.getProperty(propertyKey);
+                if (value instanceof Collection)
+                    value = convertCollectionToArray((Collection<?>) value);
+                if (value != null)
+                    orientNode.setProperty(propertyKey, value);
+            }
+        } catch (IllegalArgumentException e) {
+            if (LOGGER.isWarnEnabled())
+                LOGGER.warn(
+                        "Illegal property '" + propertyKey + " -> " + node.getProperty(propertyKey) + "' for node '" +
+                        node.getId() + "[" + String.join(":", node.getLabels()) + "]'");
+        }
+    }
+
+    @SuppressWarnings({"SuspiciousToArrayCall"})
+    private Object convertCollectionToArray(final Collection<?> collection) {
+        Class<?> type = null;
+        for (Object t : collection) {
+            if (t != null) {
+                type = t.getClass();
+                break;
+            }
+        }
+        if (type != null) {
+            if (type.equals(String.class))
+                return collection.stream().map(type::cast).toArray(String[]::new);
+            if (type.equals(Boolean.class))
+                return collection.stream().map(type::cast).toArray(Boolean[]::new);
+            if (type.equals(Integer.class))
+                return collection.stream().map(type::cast).toArray(Integer[]::new);
+            if (type.equals(Float.class))
+                return collection.stream().map(type::cast).toArray(Float[]::new);
+            if (type.equals(Long.class))
+                return collection.stream().map(type::cast).toArray(Long[]::new);
+            if (type.equals(Double.class))
+                return collection.stream().map(type::cast).toArray(Double[]::new);
+            if (type.equals(Byte.class))
+                return collection.stream().map(type::cast).toArray(Byte[]::new);
+            if (type.equals(Short.class))
+                return collection.stream().map(type::cast).toArray(Short[]::new);
+        }
+        return collection.stream().map(Object::toString).toArray(String[]::new);
+    }
+
+    private void createEdges(final ODatabaseDocumentInternal db, final Graph graph,
+                             final HashMap<Long, ORID> nodeIdOrientDBIdMap) {
+        if (LOGGER.isInfoEnabled())
+            LOGGER.info("Creating edges...");
+        for (final Edge edge : graph.getEdges()) {
+            if (db.getClass(edge.getLabel()) == null)
+                db.createEdgeClass(edge.getLabel());
+            final OVertex fromNode = db.getRecord(nodeIdOrientDBIdMap.get(edge.getFromId()));
+            final OVertex toNode = db.getRecord(nodeIdOrientDBIdMap.get(edge.getToId()));
+            final OEdge orientEdge = db.newEdge(fromNode, toNode, edge.getLabel());
+            for (final String propertyKey : edge.keySet())
+                if (!Edge.IGNORED_FIELDS.contains(propertyKey)) {
+                    Object value = edge.getProperty(propertyKey);
+                    if (value instanceof Collection)
+                        value = convertCollectionToArray((Collection<?>) value);
+                    if (value != null)
+                        orientEdge.setProperty(propertyKey, value);
+                }
+            orientEdge.save();
+        }
+    }
+
+    private void createIndices(final ODatabaseSession db) {
+        if (LOGGER.isInfoEnabled())
+            LOGGER.info("Creating indices...");
         // TODO
     }
 }
