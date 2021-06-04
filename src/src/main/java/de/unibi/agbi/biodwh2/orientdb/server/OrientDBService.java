@@ -19,10 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
+import java.util.*;
 
 /**
  * https://orientdb.com/docs/last/internals/Embedded-Server.html
@@ -33,6 +30,7 @@ public class OrientDBService {
     private final String workspacePath;
     private final Path orientdbPath;
     private final Path databasePath;
+    private final Path wwwPath;
     private final Path configPath;
     private final Path securityFilePath;
     private OServer server;
@@ -41,6 +39,7 @@ public class OrientDBService {
         this.workspacePath = workspacePath;
         orientdbPath = Paths.get(workspacePath, "orientdb");
         databasePath = Paths.get(workspacePath, "orientdb", "orientdb");
+        wwwPath = Paths.get(workspacePath, "orientdb", "www");
         configPath = Paths.get(workspacePath, "orientdb", "config");
         securityFilePath = Paths.get(workspacePath, "orientdb", "config", "security.json");
     }
@@ -50,7 +49,7 @@ public class OrientDBService {
             LOGGER.info("Starting OrientDB DBMS on localhost:2424...");
         try {
             System.setProperty("ORIENTDB_HOME", orientdbPath.toString());
-            System.setProperty("ORIENTDB_ROOT_PASSWORD", "");
+            System.setProperty("ORIENTDB_ROOT_PASSWORD", "root");
             Files.createDirectories(databasePath);
             Files.createDirectories(configPath);
             Files.write(securityFilePath,
@@ -67,17 +66,8 @@ public class OrientDBService {
     private OServerConfiguration getServerConfig() {
         final OServerConfiguration config = new OServerConfiguration();
         config.network = getNetwork();
-        config.users = new OServerUserConfiguration[]{
-                getUser("root", "root", "*"), getUser("biodwh2", "biodwh2", "*"), getUser("guest", "guest",
-                                                                                          "connect,server.listDatabases,server.dblist")
-        };
-        config.properties = new OServerEntryConfiguration[]{
-                getServerProperty("server.cache.staticResources", "false"), getServerProperty("log.console.level",
-                                                                                              "warning"),
-                getServerProperty("log.file.level", "fine"), getServerProperty("plugin.dynamic", "true"),
-                getServerProperty("server.database.path", databasePath.toString()), getServerProperty(
-                "orientdb.www.path", Paths.get(orientdbPath.toString(), "www").toString())
-        };
+        config.users = getUsers();
+        config.properties = getServerProperties();
         return config;
     }
 
@@ -102,9 +92,9 @@ public class OrientDBService {
         httpCommand.implementation = "com.orientechnologies.orient.server.network.protocol.http.command.get.OServerCommandGetStaticContent";
         httpCommand.pattern = "GET|www GET|studio/ GET| GET|*.htm GET|*.html GET|*.xml GET|*.jpeg GET|*.jpg GET|*.png GET|*.gif GET|*.js GET|*.css GET|*.swf GET|*.ico GET|*.txt GET|*.otf GET|*.pjs GET|*.svg";
         httpCommand.parameters = new OServerEntryConfiguration[]{
-                getServerProperty("http.cache:*.htm *.html",
-                                  "Cache-Control: no-cache, no-store, max-age=0, must-revalidate\r\nPragma: no-cache"),
-                getServerProperty("http.cache:default", "Cache-Control: max-age=120")
+                new OServerEntryConfiguration("http.cache:*.htm *.html",
+                                              "Cache-Control: no-cache, no-store, max-age=0, must-revalidate\r\nPragma: no-cache"),
+                new OServerEntryConfiguration("http.cache:default", "Cache-Control: max-age=120")
         };
         httpListener.commands = new OServerCommandConfiguration[]{httpCommand};
         final OServerParameterConfiguration charsetParameter = new OServerParameterConfiguration();
@@ -115,19 +105,23 @@ public class OrientDBService {
         return network;
     }
 
-    private OServerUserConfiguration getUser(final String name, final String password, final String resources) {
-        final OServerUserConfiguration user = new OServerUserConfiguration();
-        user.name = name;
-        user.password = password;
-        user.resources = resources;
-        return user;
+    private OServerUserConfiguration[] getUsers() {
+        final List<OServerUserConfiguration> result = new ArrayList<>();
+        result.add(new OServerUserConfiguration("root", "root", "*"));
+        result.add(new OServerUserConfiguration("biodwh2", "biodwh2", "*"));
+        result.add(new OServerUserConfiguration("guest", "guest", "connect,server.listDatabases,server.dblist"));
+        return result.toArray(new OServerUserConfiguration[0]);
     }
 
-    private OServerEntryConfiguration getServerProperty(final String key, final String value) {
-        final OServerEntryConfiguration property = new OServerEntryConfiguration();
-        property.name = key;
-        property.value = value;
-        return property;
+    private OServerEntryConfiguration[] getServerProperties() {
+        final List<OServerEntryConfiguration> result = new ArrayList<>();
+        result.add(new OServerEntryConfiguration("server.cache.staticResources", "false"));
+        result.add(new OServerEntryConfiguration("log.console.level", "warning"));
+        result.add(new OServerEntryConfiguration("log.file.level", "fine"));
+        result.add(new OServerEntryConfiguration("plugin.dynamic", "true"));
+        result.add(new OServerEntryConfiguration("server.database.path", databasePath.toString()));
+        result.add(new OServerEntryConfiguration("orientdb.www.path", wwwPath.toString()));
+        return result.toArray(new OServerEntryConfiguration[0]);
     }
 
     public void stopOrientDBService() {
