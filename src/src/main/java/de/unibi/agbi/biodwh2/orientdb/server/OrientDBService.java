@@ -1,6 +1,11 @@
 package de.unibi.agbi.biodwh2.orientdb.server;
 
-import com.orientechnologies.orient.core.db.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
+import com.orientechnologies.orient.core.db.ODatabaseSession;
+import com.orientechnologies.orient.core.db.ODatabaseType;
+import com.orientechnologies.orient.core.db.OrientDBConfig;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.OEdge;
 import com.orientechnologies.orient.core.record.OVertex;
@@ -10,12 +15,12 @@ import com.orientechnologies.orient.server.config.*;
 import de.unibi.agbi.biodwh2.core.model.graph.Edge;
 import de.unibi.agbi.biodwh2.core.model.graph.Graph;
 import de.unibi.agbi.biodwh2.core.model.graph.Node;
+import de.unibi.agbi.biodwh2.orientdb.server.model.SecurityConfig;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -52,15 +57,59 @@ public class OrientDBService {
             System.setProperty("ORIENTDB_ROOT_PASSWORD", "root");
             Files.createDirectories(databasePath);
             Files.createDirectories(configPath);
-            Files.write(securityFilePath,
-                        "{\"enabled\":true,\"authentication\":{\"allowDefault\":true,\"authenticators\":[{\"name\":\"Password\",\"class\":\"com.orientechnologies.orient.server.security.authenticator.ODefaultPasswordAuthenticator\",\"enabled\":true,\"users\":[{\"username\":\"guest\",\"resources\":\"connect,server.listDatabases,server.dblist\"},{\"username\":\"root\",\"resources\":\"*\"},{\"username\":\"biodwh2\",\"resources\":\"*\"}]},{\"name\":\"ServerConfig\",\"class\":\"com.orientechnologies.orient.server.security.authenticator.OServerConfigAuthenticator\",\"enabled\":true}]}}"
-                                .getBytes(StandardCharsets.UTF_8));
+            writeSecurityConfigFile();
             server = OServerMain.create();
             server.startup(getServerConfig());
             server.activate();
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void writeSecurityConfigFile() throws IOException {
+        final ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
+        objectMapper.writeValue(securityFilePath.toFile(), getSecurityConfig());
+    }
+
+    private SecurityConfig getSecurityConfig() {
+        final SecurityConfig securityConfig = new SecurityConfig();
+        securityConfig.enabled = true;
+        securityConfig.authentication = new SecurityConfig.Authentication();
+        securityConfig.authentication.allowDefault = true;
+        securityConfig.authentication.authenticators = new ArrayList<>();
+        securityConfig.authentication.authenticators.add(getPasswordAuthenticator());
+        securityConfig.authentication.authenticators.add(getServerConfigAuthenticator());
+        return securityConfig;
+    }
+
+    private SecurityConfig.Authenticator getPasswordAuthenticator() {
+        final SecurityConfig.Authenticator authenticator = new SecurityConfig.Authenticator();
+        authenticator.enabled = true;
+        authenticator.name = "Password";
+        authenticator.className = "com.orientechnologies.orient.server.security.authenticator.ODefaultPasswordAuthenticator";
+        authenticator.users = new ArrayList<>();
+        final SecurityConfig.User guestUser = new SecurityConfig.User();
+        guestUser.username = "guest";
+        guestUser.resources = "connect,server.listDatabases,server.dblist";
+        authenticator.users.add(guestUser);
+        final SecurityConfig.User rootUser = new SecurityConfig.User();
+        rootUser.username = "root";
+        rootUser.resources = "*";
+        authenticator.users.add(rootUser);
+        final SecurityConfig.User biodwh2User = new SecurityConfig.User();
+        biodwh2User.username = "biodwh2";
+        biodwh2User.resources = "*";
+        authenticator.users.add(biodwh2User);
+        return authenticator;
+    }
+
+    private SecurityConfig.Authenticator getServerConfigAuthenticator() {
+        final SecurityConfig.Authenticator authenticator = new SecurityConfig.Authenticator();
+        authenticator.enabled = true;
+        authenticator.name = "ServerConfig";
+        authenticator.className = "com.orientechnologies.orient.server.security.authenticator.OServerConfigAuthenticator";
+        return authenticator;
     }
 
     private OServerConfiguration getServerConfig() {
@@ -163,11 +212,10 @@ public class OrientDBService {
         if (LOGGER.isInfoEnabled())
             LOGGER.info("Creating nodes...");
         for (final Node node : graph.getNodes()) {
-            for (final String label : node.getLabels())
-                if (db.getClass(label) == null)
-                    db.createVertexClass(label);
-            // TODO: multiple labels?
-            OVertex orientNode = db.newVertex(node.getLabels()[0]);
+            final String label = node.getLabel();
+            if (db.getClass(label) == null)
+                db.createVertexClass(label);
+            OVertex orientNode = db.newVertex(label);
             for (final String propertyKey : node.keySet())
                 setPropertySafe(node, orientNode, propertyKey);
             final ORID id = orientNode.save().getIdentity();
@@ -188,7 +236,7 @@ public class OrientDBService {
             if (LOGGER.isWarnEnabled())
                 LOGGER.warn(
                         "Illegal property '" + propertyKey + " -> " + node.getProperty(propertyKey) + "' for node '" +
-                        node.getId() + "[" + String.join(":", node.getLabels()) + "]'");
+                        node.getId() + "[:" + node.getLabel() + "]'");
         }
     }
 
