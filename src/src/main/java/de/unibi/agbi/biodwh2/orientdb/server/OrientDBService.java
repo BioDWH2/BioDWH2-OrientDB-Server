@@ -8,12 +8,15 @@ import com.orientechnologies.orient.core.db.ODatabaseType;
 import com.orientechnologies.orient.core.db.OrientDBConfig;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
+import com.orientechnologies.orient.core.metadata.schema.OProperty;
+import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.OEdge;
 import com.orientechnologies.orient.core.record.OVertex;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.server.OServer;
 import com.orientechnologies.orient.server.OServerMain;
 import com.orientechnologies.orient.server.config.*;
+import de.unibi.agbi.biodwh2.core.lang.Type;
 import de.unibi.agbi.biodwh2.core.model.graph.Edge;
 import de.unibi.agbi.biodwh2.core.model.graph.Graph;
 import de.unibi.agbi.biodwh2.core.model.graph.IndexDescription;
@@ -213,11 +216,18 @@ public class OrientDBService {
     private void createNodes(final ODatabaseDocumentInternal db, final Graph graph,
                              final HashMap<Long, ORID> nodeIdOrientDBIdMap) {
         if (LOGGER.isInfoEnabled())
+            LOGGER.info("Creating node definitions...");
+        for (final String label : graph.getNodeLabels()) {
+            final OClass definition = db.createVertexClass(label);
+            final Map<String, Type> propertyKeyTypes = graph.getPropertyKeyTypesForNodeLabel(label);
+            for (final String key : propertyKeyTypes.keySet())
+                if (!Node.IGNORED_FIELDS.contains(key))
+                    definition.createProperty(key, OType.getTypeByClass(propertyKeyTypes.get(key).getType()));
+        }
+        if (LOGGER.isInfoEnabled())
             LOGGER.info("Creating nodes...");
         for (final Node node : graph.getNodes()) {
             final String label = node.getLabel();
-            if (db.getClass(label) == null)
-                db.createVertexClass(label);
             OVertex orientNode = db.newVertex(label);
             for (final String propertyKey : node.keySet())
                 setPropertySafe(node, orientNode, propertyKey);
@@ -276,10 +286,17 @@ public class OrientDBService {
     private void createEdges(final ODatabaseDocumentInternal db, final Graph graph,
                              final HashMap<Long, ORID> nodeIdOrientDBIdMap) {
         if (LOGGER.isInfoEnabled())
+            LOGGER.info("Creating edge definitions...");
+        for (final String label : graph.getEdgeLabels()) {
+            final OClass definition = db.createEdgeClass(label);
+            final Map<String, Type> propertyKeyTypes = graph.getPropertyKeyTypesForEdgeLabel(label);
+            for (final String key : propertyKeyTypes.keySet())
+                if (!Edge.IGNORED_FIELDS.contains(key))
+                    definition.createProperty(key, OType.getTypeByClass(propertyKeyTypes.get(key).getType()));
+        }
+        if (LOGGER.isInfoEnabled())
             LOGGER.info("Creating edges...");
         for (final Edge edge : graph.getEdges()) {
-            if (db.getClass(edge.getLabel()) == null)
-                db.createEdgeClass(edge.getLabel());
             final OVertex fromNode = db.getRecord(nodeIdOrientDBIdMap.get(edge.getFromId()));
             final OVertex toNode = db.getRecord(nodeIdOrientDBIdMap.get(edge.getToId()));
             final OEdge orientEdge = db.newEdge(fromNode, toNode, edge.getLabel());
@@ -291,7 +308,6 @@ public class OrientDBService {
                     if (value != null)
                         orientEdge.setProperty(propertyKey, value);
                 }
-            orientEdge.save();
         }
     }
 
@@ -306,11 +322,11 @@ public class OrientDBService {
             final OClass.INDEX_TYPE type = index.getType() == IndexDescription.Type.UNIQUE ? OClass.INDEX_TYPE.UNIQUE :
                                            OClass.INDEX_TYPE.NOTUNIQUE;
             final ODocument metadata = new ODocument().field("ignoreNullValues", true);
-            if (index.getTarget() == IndexDescription.Target.NODE)
-                db.getClass(index.getLabel()).getProperty(index.getProperty()).createIndex(type, metadata);
-            else {
-                // TODO
-            }
+            final OProperty propertyDefinition = db.getClass(index.getLabel()).getProperty(index.getProperty());
+            if (propertyDefinition != null)
+                propertyDefinition.createIndex(type, metadata);
+            else if (LOGGER.isErrorEnabled())
+                LOGGER.error("Failed to create index on undefined property '" + index.getProperty() + "'");
         }
     }
 }
