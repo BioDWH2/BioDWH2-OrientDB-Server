@@ -7,6 +7,7 @@ import com.orientechnologies.orient.core.db.ODatabaseSession;
 import com.orientechnologies.orient.core.db.ODatabaseType;
 import com.orientechnologies.orient.core.db.OrientDBConfig;
 import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.record.OEdge;
 import com.orientechnologies.orient.core.record.OVertex;
 import com.orientechnologies.orient.server.OServer;
@@ -14,6 +15,7 @@ import com.orientechnologies.orient.server.OServerMain;
 import com.orientechnologies.orient.server.config.*;
 import de.unibi.agbi.biodwh2.core.model.graph.Edge;
 import de.unibi.agbi.biodwh2.core.model.graph.Graph;
+import de.unibi.agbi.biodwh2.core.model.graph.IndexDescription;
 import de.unibi.agbi.biodwh2.core.model.graph.Node;
 import de.unibi.agbi.biodwh2.orientdb.server.model.SecurityConfig;
 import org.apache.commons.io.FileUtils;
@@ -200,7 +202,7 @@ public class OrientDBService {
             final HashMap<Long, ORID> nodeIdOrientDBIdMap = new HashMap<>();
             createNodes(db, graph, nodeIdOrientDBIdMap);
             createEdges(db, graph, nodeIdOrientDBIdMap);
-            createIndices(db);
+            createIndices(db, graph);
         } catch (IOException e) {
             if (LOGGER.isErrorEnabled())
                 LOGGER.error("Failed to create OrientDB database '" + databasePath + "'", e);
@@ -292,9 +294,23 @@ public class OrientDBService {
         }
     }
 
-    private void createIndices(final ODatabaseSession db) {
+    private void createIndices(final ODatabaseSession db, final Graph graph) {
         if (LOGGER.isInfoEnabled())
             LOGGER.info("Creating indices...");
-        // TODO
+        final IndexDescription[] indices = graph.indexDescriptions();
+        for (final IndexDescription index : indices) {
+            if (LOGGER.isInfoEnabled())
+                LOGGER.info("Creating " + index.getType() + " index on '" + index.getProperty() + "' field for " +
+                            index.getTarget() + " label '" + index.getLabel() + "'...");
+            final OClass.INDEX_TYPE type = index.getType() == IndexDescription.Type.UNIQUE ? OClass.INDEX_TYPE.UNIQUE :
+                                           OClass.INDEX_TYPE.NOTUNIQUE;
+            final String indexNamePrefix = index.getTarget() == IndexDescription.Target.NODE ? "n" : "e";
+            final String indexName = indexNamePrefix + "i-" + index.getLabel() + "-" + index.getProperty();
+            if (index.getTarget() == IndexDescription.Target.NODE)
+                db.getClass(index.getLabel()).createIndex(indexName, type, index.getProperty());
+            else {
+                // TODO
+            }
+        }
     }
 }
