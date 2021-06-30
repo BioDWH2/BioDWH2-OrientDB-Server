@@ -10,6 +10,7 @@ import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.record.OEdge;
 import com.orientechnologies.orient.core.record.OVertex;
+import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.server.OServer;
 import com.orientechnologies.orient.server.OServerMain;
 import com.orientechnologies.orient.server.config.*;
@@ -304,10 +305,9 @@ public class OrientDBService {
                             index.getTarget() + " label '" + index.getLabel() + "'...");
             final OClass.INDEX_TYPE type = index.getType() == IndexDescription.Type.UNIQUE ? OClass.INDEX_TYPE.UNIQUE :
                                            OClass.INDEX_TYPE.NOTUNIQUE;
-            final String indexNamePrefix = index.getTarget() == IndexDescription.Target.NODE ? "n" : "e";
-            final String indexName = indexNamePrefix + "i-" + index.getLabel() + "-" + index.getProperty();
+            final ODocument metadata = new ODocument().field("ignoreNullValues", true);
             if (index.getTarget() == IndexDescription.Target.NODE)
-                db.getClass(index.getLabel()).createIndex(indexName, type, index.getProperty());
+                db.getClass(index.getLabel()).getProperty(index.getProperty()).createIndex(type, metadata);
             else {
                 // TODO
             }
