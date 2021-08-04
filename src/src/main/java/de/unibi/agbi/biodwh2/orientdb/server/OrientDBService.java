@@ -14,6 +14,7 @@ import com.orientechnologies.orient.core.record.OEdge;
 import com.orientechnologies.orient.core.record.OVertex;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.server.OServer;
+import com.orientechnologies.orient.server.OServerLifecycleListener;
 import com.orientechnologies.orient.server.OServerMain;
 import com.orientechnologies.orient.server.config.*;
 import de.unibi.agbi.biodwh2.core.lang.Type;
@@ -23,14 +24,19 @@ import de.unibi.agbi.biodwh2.core.model.graph.IndexDescription;
 import de.unibi.agbi.biodwh2.core.model.graph.Node;
 import de.unibi.agbi.biodwh2.orientdb.server.model.SecurityConfig;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.*;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.List;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Formatter;
 import java.util.logging.Handler;
@@ -67,7 +73,7 @@ public class OrientDBService extends Formatter {
         return "";
     }
 
-    public void startOrientDBService() {
+    public void startOrientDBService(final String port, final String studioPort) {
         if (LOGGER.isInfoEnabled())
             LOGGER.info("Starting OrientDB DBMS on localhost:2424...");
         try {
@@ -78,7 +84,7 @@ public class OrientDBService extends Formatter {
             writeSecurityConfigFile();
             server = OServerMain.create();
             injectLogging();
-            server.startup(getServerConfig());
+            server.startup(getServerConfig(port, studioPort));
             server.activate();
         } catch (Exception e) {
             e.printStackTrace();
@@ -131,15 +137,15 @@ public class OrientDBService extends Formatter {
         return authenticator;
     }
 
-    private OServerConfiguration getServerConfig() {
+    private OServerConfiguration getServerConfig(final String port, final String studioPort) {
         final OServerConfiguration config = new OServerConfiguration();
-        config.network = getNetwork();
+        config.network = getNetwork(port, studioPort);
         config.users = getUsers();
         config.properties = getServerProperties();
         return config;
     }
 
-    private OServerNetworkConfiguration getNetwork() {
+    private OServerNetworkConfiguration getNetwork(final String port, final String studioPort) {
         final OServerNetworkConfiguration network = new OServerNetworkConfiguration();
         final OServerNetworkProtocolConfiguration binaryProtocol = new OServerNetworkProtocolConfiguration();
         binaryProtocol.name = "binary";
@@ -150,11 +156,11 @@ public class OrientDBService extends Formatter {
         network.protocols = new ArrayList<>(Arrays.asList(binaryProtocol, httpProtocol));
         final OServerNetworkListenerConfiguration binaryListener = new OServerNetworkListenerConfiguration();
         binaryListener.ipAddress = "0.0.0.0";
-        binaryListener.portRange = "2424-2430";
+        binaryListener.portRange = validatePort(port, "2424-2430");
         binaryListener.protocol = "binary";
         final OServerNetworkListenerConfiguration httpListener = new OServerNetworkListenerConfiguration();
-        httpListener.ipAddress = "0.0.0.0";
-        httpListener.portRange = "2480-2490";
+        httpListener.ipAddress = "127.0.0.1";
+        httpListener.portRange = validatePort(studioPort, "2480-2490");
         httpListener.protocol = "http";
         final OServerCommandConfiguration httpCommand = new OServerCommandConfiguration();
         httpCommand.implementation = "com.orientechnologies.orient.server.network.protocol.http.command.get.OServerCommandGetStaticContent";
@@ -171,6 +177,24 @@ public class OrientDBService extends Formatter {
         httpListener.parameters = new OServerParameterConfiguration[]{charsetParameter};
         network.listeners = new ArrayList<>(Arrays.asList(binaryListener, httpListener));
         return network;
+    }
+
+    private String validatePort(String port, final String fallback) {
+        port = port.trim().replace(" ", "");
+        if (port.contains("-")) {
+            final String[] rangeParts = StringUtils.split(port, '-');
+            if (rangeParts.length == 2) {
+                return port;
+            } else
+                LOGGER.warn("Failed to parse port or port range '" + port + "', falling back to '" + fallback + "'");
+        }
+        try {
+            final int portNumber = Integer.parseInt(port);
+            return String.valueOf(Math.abs(portNumber));
+        } catch (NumberFormatException ignored) {
+            LOGGER.warn("Failed to parse port or port range '" + port + "', falling back to '" + fallback + "'");
+        }
+        return fallback;
     }
 
     private OServerUserConfiguration[] getUsers() {
@@ -350,6 +374,17 @@ public class OrientDBService extends Formatter {
                 propertyDefinition.createIndex(type, metadata);
             else if (LOGGER.isErrorEnabled())
                 LOGGER.error("Failed to create index on undefined property '" + index.getProperty() + "'");
+        }
+    }
+
+    public void openBrowser() {
+        final String hostName = server.getNetworkListeners().get(1).getInboundAddr().getHostName();
+        final int port = server.getNetworkListeners().get(1).getInboundAddr().getPort();
+        try {
+            Desktop.getDesktop().browse(new URI("http://" + hostName + ":" + port + "/studio/index.html"));
+        } catch (IOException | URISyntaxException e) {
+            if (LOGGER.isErrorEnabled())
+                LOGGER.error("Failed to open Browser", e);
         }
     }
 }

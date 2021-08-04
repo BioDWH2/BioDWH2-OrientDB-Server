@@ -54,9 +54,10 @@ public class OrientDBServer {
         service.deleteOldDatabase();
         final OrientDBStudio studio = new OrientDBStudio(workspacePath);
         studio.downloadOrientDBStudio();
-        service.startOrientDBService();
+        service.startOrientDBService(commandLine.port, commandLine.studioPort);
         service.createDatabase();
         storeWorkspaceHash(workspacePath);
+        service.openBrowser();
     }
 
     private boolean verifyWorkspaceExists(final String workspacePath) {
@@ -101,7 +102,8 @@ public class OrientDBServer {
         final OrientDBService service = new OrientDBService(workspacePath);
         final OrientDBStudio studio = new OrientDBStudio(workspacePath);
         studio.downloadOrientDBStudio();
-        service.startOrientDBService();
+        service.startOrientDBService(commandLine.port, commandLine.studioPort);
+        service.openBrowser();
     }
 
     private boolean checkOrientDBDatabaseMatchesWorkspace(final String workspacePath) {
@@ -128,7 +130,7 @@ public class OrientDBServer {
         }
         final OrientDBService service = new OrientDBService(workspacePath);
         service.deleteOldDatabase();
-        service.startOrientDBService();
+        service.startOrientDBService(commandLine.port, commandLine.studioPort);
         service.createDatabase();
         storeWorkspaceHash(workspacePath);
         service.stopOrientDBService();
