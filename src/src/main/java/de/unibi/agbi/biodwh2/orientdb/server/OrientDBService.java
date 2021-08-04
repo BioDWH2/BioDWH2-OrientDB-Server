@@ -31,11 +31,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Formatter;
+import java.util.logging.Handler;
+import java.util.logging.LogManager;
+import java.util.logging.LogRecord;
 
 /**
  * https://orientdb.com/docs/last/internals/Embedded-Server.html
  */
-public class OrientDBService {
+public class OrientDBService extends Formatter {
     private static final Logger LOGGER = LoggerFactory.getLogger(OrientDBService.class);
 
     private final String workspacePath;
@@ -53,6 +58,13 @@ public class OrientDBService {
         wwwPath = Paths.get(workspacePath, "orientdb", "www");
         configPath = Paths.get(workspacePath, "orientdb", "config");
         securityFilePath = Paths.get(workspacePath, "orientdb", "config", "security.json");
+        injectLogging();
+    }
+
+    @Override
+    public String format(LogRecord record) {
+        LOGGER.info("[OrientDB] " + record.getMessage());
+        return "";
     }
 
     public void startOrientDBService() {
@@ -65,6 +77,7 @@ public class OrientDBService {
             Files.createDirectories(configPath);
             writeSecurityConfigFile();
             server = OServerMain.create();
+            injectLogging();
             server.startup(getServerConfig());
             server.activate();
         } catch (Exception e) {
@@ -177,6 +190,16 @@ public class OrientDBService {
         result.add(new OServerEntryConfiguration("server.database.path", databasePath.toString()));
         result.add(new OServerEntryConfiguration("orientdb.www.path", wwwPath.toString()));
         return result.toArray(new OServerEntryConfiguration[0]);
+    }
+
+    private void injectLogging() {
+        java.util.logging.Logger l = LogManager.getLogManager().getLogger("");
+        l.setUseParentHandlers(false);
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setFormatter(this);
+        for (Handler h : l.getHandlers())
+            l.removeHandler(h);
+        l.addHandler(handler);
     }
 
     public void stopOrientDBService() {
