@@ -23,13 +23,12 @@ Once the database has been created, the database and OrientDB Studio can be star
 
 ## Help
 ~~~
-Usage: BioDWH2-OrientDB-Server.jar [-h] [-c=<workspacePath>]
-                                   [-cs=<workspacePath>] [-s=<workspacePath>]
-  -c, --create=<workspacePath>
-                      Create a OrientDB database from the workspace graph
-  -cs, --create-start=<workspacePath>
-                      Create and start a OrientDB database from the workspace graph
-  -h, --help          print this message
-  -s, --start=<workspacePath>
-                      Start a OrientDB server for the workspace
+Usage: BioDWH2-OrientDB-Server.jar [-h] [-c <workspacePath>] [-cs <workspacePath>]
+                                   [-s <workspacePath>] [-p <port>] [-sp <studioPort>]
+  -h, --help                            print this message
+  -s, --start <workspacePath>           Start an OrientDB server for the workspace
+  -c, --create <workspacePath>          Create a OrientDB database from the workspace graph
+  -cs, --create-start <workspacePath>   Create and start a OrientDB database from the workspace graph
+  -p, --port <port>                     Specifies the OrientDB server port(-range) (default 2424-2430)
+  -sp, --studio-port <studioPort>       Specifies the OrientDB Studio port(-range) (default 2480-2490)
 ~~~
