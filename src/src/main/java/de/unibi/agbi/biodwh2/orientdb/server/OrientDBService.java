@@ -14,7 +14,6 @@ import com.orientechnologies.orient.core.record.OEdge;
 import com.orientechnologies.orient.core.record.OVertex;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.server.OServer;
-import com.orientechnologies.orient.server.OServerLifecycleListener;
 import com.orientechnologies.orient.server.OServerMain;
 import com.orientechnologies.orient.server.config.*;
 import de.unibi.agbi.biodwh2.core.lang.Type;
@@ -366,6 +365,10 @@ public class OrientDBService extends Formatter {
             if (LOGGER.isInfoEnabled())
                 LOGGER.info("Creating " + index.getType() + " index on '" + index.getProperty() + "' field for " +
                             index.getTarget() + " label '" + index.getLabel() + "'...");
+            if (index.isArrayProperty()) {
+                LOGGER.warn("Skipping array index creation as it is not yet supported.");
+                continue;
+            }
             final OClass.INDEX_TYPE type = index.getType() == IndexDescription.Type.UNIQUE ? OClass.INDEX_TYPE.UNIQUE :
                                            OClass.INDEX_TYPE.NOTUNIQUE;
             final ODocument metadata = new ODocument().field("ignoreNullValues", true);
