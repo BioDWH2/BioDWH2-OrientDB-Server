@@ -21,6 +21,10 @@ Once the database has been created, the database and OrientDB Studio can be star
 > java -jar BioDWH2-OrientDB-Server.jar --start /path/to/workspace
 ~~~
 
+By default, two users are created for OrientDB Studio:
+  * username: `biodwh2`, password: `biodwh2`
+  * username: `root`, password: `root`
+
 ## Help
 ~~~
 Usage: BioDWH2-OrientDB-Server.jar [-h] [-c <workspacePath>] [-cs <workspacePath>]
