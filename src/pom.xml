@@ -104,7 +104,7 @@
         <dependency>
             <groupId>com.orientechnologies</groupId>
             <artifactId>orientdb-tools</artifactId>
-            <version>3.2.7</version>
+            <version>3.2.8</version>
         </dependency>
         <dependency>
             <groupId>com.orientechnologies</groupId>
