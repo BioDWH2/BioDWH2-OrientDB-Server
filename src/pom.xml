@@ -89,7 +89,7 @@
         <dependency>
             <groupId>de.unibi.agbi.biodwh2</groupId>
             <artifactId>biodwh2-core</artifactId>
-            <version>0.3.7</version>
+            <version>0.4.6</version>
         </dependency>
         <dependency>
             <groupId>info.picocli</groupId>
@@ -104,17 +104,17 @@
         <dependency>
             <groupId>com.orientechnologies</groupId>
             <artifactId>orientdb-tools</artifactId>
-            <version>3.2.7</version>
+            <version>3.2.9</version>
         </dependency>
         <dependency>
             <groupId>com.orientechnologies</groupId>
             <artifactId>orientdb-core</artifactId>
-            <version>3.2.7</version>
+            <version>3.2.9</version>
         </dependency>
         <dependency>
             <groupId>com.orientechnologies</groupId>
             <artifactId>orientdb-server</artifactId>
-            <version>3.2.7</version>
+            <version>3.2.9</version>
         </dependency>
     </dependencies>
 
