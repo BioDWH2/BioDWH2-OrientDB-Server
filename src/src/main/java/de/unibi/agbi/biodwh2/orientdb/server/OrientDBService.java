@@ -274,7 +274,7 @@ public class OrientDBService extends Formatter {
                     definition.createProperty(key, OType.getTypeByClass(propertyKeyTypes.get(key).getType()));
             // Create the actual nodes
             for (final Node node : graph.getNodes(label)) {
-                OVertex orientNode = db.newVertex(label);
+                OVertex orientNode = db.newVertex(definition);
                 for (final String propertyKey : node.keySet())
                     setPropertySafe(node, orientNode, propertyKey);
                 final ORID id = orientNode.save().getIdentity();
@@ -347,7 +347,7 @@ public class OrientDBService extends Formatter {
             for (final Edge edge : graph.getEdges(label)) {
                 final OVertex fromNode = db.getRecord(nodeIdOrientDBIdMap.get(edge.getFromId()));
                 final OVertex toNode = db.getRecord(nodeIdOrientDBIdMap.get(edge.getToId()));
-                final OEdge orientEdge = db.newEdge(fromNode, toNode, edge.getLabel());
+                final OEdge orientEdge = db.newEdge(fromNode, toNode, definition);
                 for (final String propertyKey : edge.keySet())
                     if (!Edge.IGNORED_FIELDS.contains(propertyKey)) {
                         Object value = edge.getProperty(propertyKey);
@@ -356,6 +356,7 @@ public class OrientDBService extends Formatter {
                         if (value != null)
                             orientEdge.setProperty(propertyKey, value);
                     }
+                orientEdge.save();
             }
         }
     }
