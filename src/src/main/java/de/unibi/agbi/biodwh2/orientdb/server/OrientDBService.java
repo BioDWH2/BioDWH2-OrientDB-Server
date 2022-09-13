@@ -261,24 +261,25 @@ public class OrientDBService extends Formatter {
 
     private void createNodes(final ODatabaseDocumentInternal db, final Graph graph,
                              final HashMap<Long, ORID> nodeIdOrientDBIdMap) {
-        if (LOGGER.isInfoEnabled())
-            LOGGER.info("Creating node definitions...");
-        for (final String label : graph.getNodeLabels()) {
+        final String[] labels = graph.getNodeLabels();
+        for (int i = 0; i < labels.length; i++) {
+            final String label = labels[i];
+            if (LOGGER.isInfoEnabled())
+                LOGGER.info("Creating nodes with label '" + label + "' (" + (i + 1) + "/" + labels.length + ")...");
+            // Create a node definition for the label
             final OClass definition = db.createVertexClass(label);
             final Map<String, Type> propertyKeyTypes = graph.getPropertyKeyTypesForNodeLabel(label);
             for (final String key : propertyKeyTypes.keySet())
                 if (!Node.IGNORED_FIELDS.contains(key))
                     definition.createProperty(key, OType.getTypeByClass(propertyKeyTypes.get(key).getType()));
-        }
-        if (LOGGER.isInfoEnabled())
-            LOGGER.info("Creating nodes...");
-        for (final Node node : graph.getNodes()) {
-            final String label = node.getLabel();
-            OVertex orientNode = db.newVertex(label);
-            for (final String propertyKey : node.keySet())
-                setPropertySafe(node, orientNode, propertyKey);
-            final ORID id = orientNode.save().getIdentity();
-            nodeIdOrientDBIdMap.put(node.getId(), id);
+            // Create the actual nodes
+            for (final Node node : graph.getNodes(label)) {
+                OVertex orientNode = db.newVertex(label);
+                for (final String propertyKey : node.keySet())
+                    setPropertySafe(node, orientNode, propertyKey);
+                final ORID id = orientNode.save().getIdentity();
+                nodeIdOrientDBIdMap.put(node.getId(), id);
+            }
         }
     }
 
@@ -331,29 +332,31 @@ public class OrientDBService extends Formatter {
 
     private void createEdges(final ODatabaseDocumentInternal db, final Graph graph,
                              final HashMap<Long, ORID> nodeIdOrientDBIdMap) {
-        if (LOGGER.isInfoEnabled())
-            LOGGER.info("Creating edge definitions...");
-        for (final String label : graph.getEdgeLabels()) {
+        final String[] labels = graph.getEdgeLabels();
+        for (int i = 0; i < labels.length; i++) {
+            final String label = labels[i];
+            if (LOGGER.isInfoEnabled())
+                LOGGER.info("Creating edges with label '" + label + "' (" + (i + 1) + "/" + labels.length + ")...");
+            // Create an edge definition for the label
             final OClass definition = db.createEdgeClass(label);
             final Map<String, Type> propertyKeyTypes = graph.getPropertyKeyTypesForEdgeLabel(label);
             for (final String key : propertyKeyTypes.keySet())
                 if (!Edge.IGNORED_FIELDS.contains(key))
                     definition.createProperty(key, OType.getTypeByClass(propertyKeyTypes.get(key).getType()));
-        }
-        if (LOGGER.isInfoEnabled())
-            LOGGER.info("Creating edges...");
-        for (final Edge edge : graph.getEdges()) {
-            final OVertex fromNode = db.getRecord(nodeIdOrientDBIdMap.get(edge.getFromId()));
-            final OVertex toNode = db.getRecord(nodeIdOrientDBIdMap.get(edge.getToId()));
-            final OEdge orientEdge = db.newEdge(fromNode, toNode, edge.getLabel());
-            for (final String propertyKey : edge.keySet())
-                if (!Edge.IGNORED_FIELDS.contains(propertyKey)) {
-                    Object value = edge.getProperty(propertyKey);
-                    if (value instanceof Collection)
-                        value = convertCollectionToArray((Collection<?>) value);
-                    if (value != null)
-                        orientEdge.setProperty(propertyKey, value);
-                }
+            // Create the actual edges
+            for (final Edge edge : graph.getEdges(label)) {
+                final OVertex fromNode = db.getRecord(nodeIdOrientDBIdMap.get(edge.getFromId()));
+                final OVertex toNode = db.getRecord(nodeIdOrientDBIdMap.get(edge.getToId()));
+                final OEdge orientEdge = db.newEdge(fromNode, toNode, edge.getLabel());
+                for (final String propertyKey : edge.keySet())
+                    if (!Edge.IGNORED_FIELDS.contains(propertyKey)) {
+                        Object value = edge.getProperty(propertyKey);
+                        if (value instanceof Collection)
+                            value = convertCollectionToArray((Collection<?>) value);
+                        if (value != null)
+                            orientEdge.setProperty(propertyKey, value);
+                    }
+            }
         }
     }
 
