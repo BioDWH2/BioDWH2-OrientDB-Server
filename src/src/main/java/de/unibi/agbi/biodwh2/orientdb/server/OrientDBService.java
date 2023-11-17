@@ -24,8 +24,8 @@ import de.unibi.agbi.biodwh2.core.model.graph.Node;
 import de.unibi.agbi.biodwh2.orientdb.server.model.SecurityConfig;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.awt.*;
 import java.io.IOException;
@@ -39,14 +39,13 @@ import java.util.List;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Formatter;
 import java.util.logging.Handler;
-import java.util.logging.LogManager;
 import java.util.logging.LogRecord;
 
 /**
  * https://orientdb.com/docs/last/internals/Embedded-Server.html
  */
 public class OrientDBService extends Formatter {
-    private static final Logger LOGGER = LoggerFactory.getLogger(OrientDBService.class);
+    private static final Logger LOGGER = LogManager.getLogger(OrientDBService.class);
 
     private final String workspacePath;
     private final Path orientdbPath;
@@ -216,7 +215,7 @@ public class OrientDBService extends Formatter {
     }
 
     private void injectLogging() {
-        java.util.logging.Logger l = LogManager.getLogManager().getLogger("");
+        java.util.logging.Logger l = java.util.logging.LogManager.getLogManager().getLogger("");
         l.setUseParentHandlers(false);
         ConsoleHandler handler = new ConsoleHandler();
         handler.setFormatter(this);
