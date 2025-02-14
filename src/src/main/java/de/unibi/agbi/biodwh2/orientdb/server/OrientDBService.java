@@ -67,7 +67,7 @@ public class OrientDBService extends Formatter {
 
     @Override
     public String format(LogRecord record) {
-        LOGGER.info("[OrientDB] " + record.getMessage());
+        LOGGER.info("[OrientDB] {}", record.getMessage());
         return "";
     }
 
@@ -85,7 +85,7 @@ public class OrientDBService extends Formatter {
             server.startup(getServerConfig(port, studioPort));
             server.activate();
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.error("Failed to start OrientDB service", e);
         }
     }
 
@@ -184,13 +184,13 @@ public class OrientDBService extends Formatter {
             if (rangeParts.length == 2) {
                 return port;
             } else
-                LOGGER.warn("Failed to parse port or port range '" + port + "', falling back to '" + fallback + "'");
+                LOGGER.warn("Failed to parse port or port range '{}', falling back to '{}'", port, fallback);
         }
         try {
             final int portNumber = Integer.parseInt(port);
             return String.valueOf(Math.abs(portNumber));
         } catch (NumberFormatException ignored) {
-            LOGGER.warn("Failed to parse port or port range '" + port + "', falling back to '" + fallback + "'");
+            LOGGER.warn("Failed to parse port or port range '{}', falling back to '{}'", port, fallback);
         }
         return fallback;
     }
@@ -237,7 +237,7 @@ public class OrientDBService extends Formatter {
             FileUtils.deleteDirectory(databasePath.toFile());
         } catch (IOException e) {
             if (LOGGER.isErrorEnabled())
-                LOGGER.error("Failed to remove old database '" + databasePath + "'", e);
+                LOGGER.error("Failed to remove old database '{}'", databasePath, e);
         }
     }
 
@@ -254,7 +254,7 @@ public class OrientDBService extends Formatter {
             createIndices(db, graph);
         } catch (IOException e) {
             if (LOGGER.isErrorEnabled())
-                LOGGER.error("Failed to create OrientDB database '" + databasePath + "'", e);
+                LOGGER.error("Failed to create OrientDB database '{}'", databasePath, e);
         }
     }
 
@@ -264,7 +264,7 @@ public class OrientDBService extends Formatter {
         for (int i = 0; i < labels.length; i++) {
             final String label = labels[i];
             if (LOGGER.isInfoEnabled())
-                LOGGER.info("Creating nodes with label '" + label + "' (" + (i + 1) + "/" + labels.length + ")...");
+                LOGGER.info("Creating nodes with label '{}' ({}/{})...", label, i + 1, labels.length);
             // Create a node definition for the label
             final OClass definition = db.createVertexClass(label);
             final Map<String, Type> propertyKeyTypes = graph.getPropertyKeyTypesForNodeLabel(label);
@@ -276,7 +276,7 @@ public class OrientDBService extends Formatter {
                 OVertex orientNode = db.newVertex(definition);
                 for (final String propertyKey : node.keySet())
                     setPropertySafe(node, orientNode, propertyKey);
-                final ORID id = orientNode.save().getIdentity();
+                final ORID id = db.save(orientNode).getIdentity();
                 nodeIdOrientDBIdMap.put(node.getId(), id);
             }
         }
@@ -293,9 +293,8 @@ public class OrientDBService extends Formatter {
             }
         } catch (IllegalArgumentException e) {
             if (LOGGER.isWarnEnabled())
-                LOGGER.warn(
-                        "Illegal property '" + propertyKey + " -> " + node.getProperty(propertyKey) + "' for node '" +
-                        node.getId() + "[:" + node.getLabel() + "]'");
+                LOGGER.warn("Illegal property '{} -> {}' for node '{}[:{}]'", propertyKey,
+                            node.getProperty(propertyKey), node.getId(), node.getLabel());
         }
     }
 
@@ -335,7 +334,7 @@ public class OrientDBService extends Formatter {
         for (int i = 0; i < labels.length; i++) {
             final String label = labels[i];
             if (LOGGER.isInfoEnabled())
-                LOGGER.info("Creating edges with label '" + label + "' (" + (i + 1) + "/" + labels.length + ")...");
+                LOGGER.info("Creating edges with label '{}' ({}/{})...", label, i + 1, labels.length);
             // Create an edge definition for the label
             final OClass definition = db.createEdgeClass(label);
             final Map<String, Type> propertyKeyTypes = graph.getPropertyKeyTypesForEdgeLabel(label);
@@ -355,7 +354,7 @@ public class OrientDBService extends Formatter {
                         if (value != null)
                             orientEdge.setProperty(propertyKey, value);
                     }
-                orientEdge.save();
+                db.save(orientEdge);
             }
         }
     }
@@ -366,8 +365,8 @@ public class OrientDBService extends Formatter {
         final IndexDescription[] indices = graph.indexDescriptions();
         for (final IndexDescription index : indices) {
             if (LOGGER.isInfoEnabled())
-                LOGGER.info("Creating " + index.getType() + " index on '" + index.getProperty() + "' field for " +
-                            index.getTarget() + " label '" + index.getLabel() + "'...");
+                LOGGER.info("Creating {} index on '{}' field for {} label '{}'...", index.getType(),
+                            index.getProperty(), index.getTarget(), index.getLabel());
             if (index.isArrayProperty()) {
                 LOGGER.warn("Skipping array index creation as it is not yet supported.");
                 continue;
@@ -379,7 +378,7 @@ public class OrientDBService extends Formatter {
             if (propertyDefinition != null)
                 propertyDefinition.createIndex(type, metadata);
             else if (LOGGER.isErrorEnabled())
-                LOGGER.error("Failed to create index on undefined property '" + index.getProperty() + "'");
+                LOGGER.error("Failed to create index on undefined property '{}'", index.getProperty());
         }
     }
 
